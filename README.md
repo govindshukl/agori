@@ -1,16 +1,17 @@
 # Agori
 
-Agori is a powerful and user-friendly Python package that simplifies document processing and semantic search using ChromaDB and Azure OpenAI embeddings. It provides an intuitive interface for processing PDF documents, storing their embeddings, and performing semantic searches.
+Agori is a secure Python package that provides encrypted document storage and semantic search capabilities using ChromaDB and Azure OpenAI embeddings. It focuses on secure storage and retrieval of sensitive documents while maintaining searchability through encrypted vector embeddings.
 
 ## Features
 
-- 📄 Easy PDF document processing
-- 🔍 Semantic search capabilities using Azure OpenAI embeddings
-- 💾 Optional persistent storage support
-- 🎯 Customizable chunk sizes and overlap for document splitting
+- 🔐 End-to-end encryption for documents and metadata
+- 🔍 Semantic search using Azure OpenAI embeddings
+- 📚 Multiple collection management within a database
+- 💾 Persistent storage with database isolation
 - 🚀 Simple and intuitive API
 - 🛡️ Comprehensive error handling
 - 📝 Detailed logging
+- 🧹 Automatic resource cleanup
 
 ## Installation
 
@@ -21,78 +22,103 @@ pip install agori
 ## Quick Start
 
 ```python
-from agori import Agori
+import base64
+import os
+from agori import SecureChromaDB
 
-# Initialize Agori with your Azure OpenAI credentials
-agori = Agori(
+# Generate a secure encryption key
+encryption_key = base64.urlsafe_b64encode(os.urandom(32)).decode()
+
+# Initialize SecureChromaDB with context manager for automatic cleanup
+with SecureChromaDB(
     api_key="your-azure-api-key",
-    api_base="https://your-instance.openai.azure.com/"
-)
+    api_endpoint="https://your-instance.openai.azure.com/",
+    encryption_key=encryption_key,
+    db_unique_id="my_secure_db",
+    base_storage_path="./secure_storage",
+    model_name="text-embedding-ada-002",  # or your deployment name
+    api_version="2024-02-15-preview",
+    api_type="azure"
+) as db:
+    # Create and manage collections
+    db.create_collection(
+        name="sensitive_docs",
+        metadata={"security_level": "high", "department": "HR"}
+    )
 
-# Process a PDF document
-result = agori.process_document(
-    file_path="path/to/your/document.pdf",
-    chunk_size=1000,  # Optional: customize chunk size
-    chunk_overlap=200  # Optional: customize overlap
-)
+    # Add documents with metadata
+    db.add_documents(
+        collection_name="sensitive_docs",
+        documents=["Confidential report 2024", "Employee records"],
+        metadatas=[
+            {"type": "report", "year": "2024"},
+            {"type": "records", "department": "HR"}
+        ]
+    )
 
-# Get the collection ID from the result
-collection_id = result["collection_id"]
+    # Search documents
+    results = db.query_collection(
+        collection_name="sensitive_docs",
+        query_texts=["confidential information"],
+        n_results=2
+    )
 
-# Search the processed document
-results = agori.search(
-    collection_id=collection_id,
-    query="What is the main topic?",
-    n_results=3,  # Optional: number of results to return
-    min_similarity=0.7  # Optional: minimum similarity threshold
-)
-
-# Print search results
-for result in results:
-    print(f"Rank: {result['rank']}")
-    print(f"Similarity: {result['similarity']:.4f}")
-    print(f"Text: {result['text']}\n")
+    # Process results
+    for i, docs in enumerate(results["documents"]):
+        for j, doc in enumerate(docs):
+            print(f"Document: {doc}")
+            print(f"Similarity: {results['distances'][i][j]}")
+            if "metadatas" in results:
+                print(f"Metadata: {results['metadatas'][i][j]}\n")
 ```
 
 ## Advanced Usage
 
-### Persistent Storage
-
-You can enable persistent storage to maintain your document embeddings across sessions:
+### Collection Management
 
 ```python
-agori = Agori(
-    api_key="your-azure-api-key",
-    api_base="https://your-instance.openai.azure.com/",
-    persist_directory="path/to/storage"
-)
-```
+# List all collections
+collections = db.list_collections()
+for collection in collections:
+    print(f"Name: {collection['name']}")
+    print(f"Creation Time: {collection['creation_time']}")
+    print(f"Metadata: {collection['metadata']}\n")
 
-### Custom Collection Names
+# Drop a specific collection
+db.drop_collection("collection_name")
 
-You can specify custom collection names instead of using auto-generated IDs:
-
-```python
-result = agori.process_document(
-    file_path="document.pdf",
-    collection_name="my-custom-collection"
-)
+# Clean up entire database
+db.cleanup_database(force=True)
 ```
 
 ### Error Handling
 
-Agori provides detailed error messages and custom exceptions:
-
 ```python
-from agori import AgoriException, ConfigurationError, ProcessingError, SearchError
+from agori import ConfigurationError, ProcessingError, SearchError
 
 try:
-    results = agori.search("collection-id", "query")
-except SearchError as e:
-    print(f"Search failed: {e}")
-except AgoriException as e:
-    print(f"An error occurred: {e}")
+    # Attempt to create collection
+    collection = db.create_collection(
+        name="secure_docs",
+        metadata={"department": "Legal"}
+    )
+except ConfigurationError as e:
+    print(f"Configuration error: {e}")
+except ProcessingError as e:
+    print(f"Processing error: {e}")
 ```
+
+## Security Features
+
+### Encryption
+- All documents and metadata are encrypted using Fernet symmetric encryption
+- Secure key generation and management required
+- Encrypted storage of documents and metadata
+
+### Database Isolation
+- Each database instance has a unique ID
+- Separate storage paths for different databases
+- Secure cleanup of resources
 
 ## Development
 
@@ -100,7 +126,7 @@ To set up the development environment:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/agori.git
+git clone https://github.com/govindshukl/agori.git
 cd agori
 
 # Create and activate virtual environment
@@ -114,39 +140,20 @@ pip install -r requirements-dev.txt
 pip install -e .
 ```
 
-### Running Tests
+### Testing and Quality Assurance
 
 ```bash
+# Run tests
 pytest tests -v --cov=agori
-```
 
-### Code Formatting
-
-```bash
+# Code formatting
 black src/agori tests
 isort src/agori tests
-```
 
-### Linting
-
-```bash
+# Linting
 flake8 src/agori tests
 mypy src/agori tests
 ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Requirements
 
@@ -154,20 +161,46 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Azure OpenAI API access
 - Required packages:
   - chromadb
-  - openai
-  - langchain
-  - pypdf
+  - cryptography
+  - azure-openai
+
+## Best Practices
+
+### Security
+1. Never hardcode encryption keys or API credentials
+2. Use environment variables for sensitive information
+3. Implement proper key management
+4. Regular cleanup of sensitive data
+
+### Resource Management
+1. Use context managers for automatic cleanup
+2. Properly handle collection lifecycle
+3. Implement error handling for all operations
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/NewFeature`)
+3. Commit your changes (`git commit -m 'Add NewFeature'`)
+4. Push to the branch (`git push origin feature/NewFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 
 If you encounter any issues or need support, please:
 
-1. Check the [documentation](https://github.com/yourusername/agori/docs)
-2. Search through [existing issues](https://github.com/yourusername/agori/issues)
+1. Check the [documentation](https://github.com/govindshukl/agori/docs)
+2. Search through [existing issues](https://github.com/govindshukl/agori/issues)
 3. Open a new issue if needed
 
 ## Acknowledgments
 
-- ChromaDB for the vector database functionality
+- ChromaDB for vector database functionality
 - Azure OpenAI for embeddings generation
-- LangChain for document processing utilities
+- Cryptography.io for encryption capabilities

@@ -4,8 +4,6 @@ import logging
 from pathlib import Path
 from typing import List
 
-from langchain.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from .exceptions import ProcessingError
 
@@ -46,36 +44,3 @@ def validate_file_path(file_path: str) -> Path:
     return path
 
 
-def split_document(
-    file_path: str,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
-) -> List[str]:
-    """Split a PDF document into chunks.
-
-    Args:
-        file_path: Path to the PDF file
-        chunk_size: Size of text chunks
-        chunk_overlap: Overlap between chunks
-
-    Returns:
-        List of text chunks
-
-    Raises:
-        ProcessingError: If document processing fails
-    """
-    try:
-        path = validate_file_path(file_path)
-        loader = PyPDFLoader(str(path))
-        pages = loader.load_and_split()
-
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            length_function=len,
-        )
-        chunks = text_splitter.split_documents(pages)
-        return [chunk.page_content for chunk in chunks]
-
-    except Exception as e:
-        raise ProcessingError(f"Failed to split document: {str(e)}")
