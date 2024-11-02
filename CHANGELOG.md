@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial release
-- Basic PDF document processing
 - Semantic search functionality using Azure OpenAI embeddings
 - Persistent storage support
 - Comprehensive error handling

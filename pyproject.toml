@@ -35,6 +35,8 @@ test = [
 [project.urls]
 "Homepage" = "https://github.com/govindshukl/agori"
 "Bug Tracker" = "https://github.com/govindshukl/agori/issues"
+"Repository" = "https://github.com/govindshukl/agori.git"
+"Documentation" = "https://github.com/govindshukl/agori#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agori"]

@@ -2,12 +2,16 @@
 
 import base64
 import os
+import datetime
+import logging  # Added import for logging
 from unittest.mock import Mock, patch
 
 import pytest
 from cryptography.fernet import Fernet
 
 from agori import ConfigurationError, ProcessingError, SecureChromaDB
+
+from pathlib import Path
 
 
 @pytest.fixture
@@ -36,7 +40,8 @@ def secure_db(encryption_key):
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=encryption_key,
-            storage_dir="./test_storage",
+            db_unique_id="test-db",
+            base_storage_path="./test_storage",
         )
         yield db
 
@@ -50,10 +55,12 @@ def test_initialization(encryption_key):
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=encryption_key,
+            db_unique_id="test-db",  # Added required db_unique_id
         )
 
         assert db.encryption_key == encryption_key
         assert isinstance(db.cipher_suite, Fernet)
+        assert db.db_unique_id == "test-db"  # Added assertion for db_unique_id
 
 
 def test_initialization_without_encryption_key():
@@ -63,8 +70,33 @@ def test_initialization_without_encryption_key():
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key="",
+            db_unique_id="test-db",  # Added required db_unique_id
         )
     assert "Encryption key is required" in str(excinfo.value)
+
+
+def test_initialization_without_db_id():
+    """Test that initialization fails without db_unique_id."""
+    with pytest.raises(ConfigurationError) as excinfo:
+        SecureChromaDB(
+            api_key="test-key",
+            api_endpoint="https://test.openai.azure.com",
+            encryption_key=base64.urlsafe_b64encode(os.urandom(32)),
+            db_unique_id="",  # Empty db_unique_id
+        )
+    assert "Database ID cannot be empty" in str(excinfo.value)
+
+
+def test_invalid_db_id():
+    """Test initialization with invalid db_unique_id."""
+    with pytest.raises(ConfigurationError) as excinfo:
+        SecureChromaDB(
+            api_key="test-key",
+            api_endpoint="https://test.openai.azure.com",
+            encryption_key=base64.urlsafe_b64encode(os.urandom(32)),
+            db_unique_id="@#$%",  # Invalid characters
+        )
+    assert "Database ID must contain valid characters" in str(excinfo.value)
 
 
 def test_encryption_decryption(secure_db):
@@ -85,14 +117,35 @@ def test_create_collection(secure_db):
         mock_collection = Mock()
         mock_create.return_value = mock_collection
 
-        # Use _ to indicate unused return value
-        _ = secure_db.create_collection("test_collection", metadata)
+        collection = secure_db.create_collection("test_collection", metadata)
+        assert collection is not None
 
         assert mock_create.called
         call_args = mock_create.call_args[1]
         assert "metadata" in call_args
         assert call_args["metadata"]["encrypted"] is True
-        assert "original_name" in call_args["metadata"]
+        assert "creation_time" in call_args["metadata"]  # Added check for creation_time
+
+
+def test_list_collections(secure_db):
+    """Test listing collections."""
+    mock_collection = Mock()
+    mock_collection.name = "test_collection"
+    mock_collection.metadata = {
+        "encrypted": True,
+        "creation_time": str(datetime.datetime.utcnow()),
+        "description": secure_db._encrypt_text("Test collection"),
+    }
+
+    with patch.object(secure_db.client, "list_collections") as mock_list:
+        mock_list.return_value = [mock_collection]
+
+        collections = secure_db.list_collections()
+
+        assert len(collections) == 1
+        assert collections[0]["name"] == "test_collection"
+        assert "creation_time" in collections[0]
+        assert collections[0]["metadata"]["description"] == "Test collection"
 
 
 def test_add_documents(secure_db):
@@ -104,7 +157,7 @@ def test_add_documents(secure_db):
         mock_collection = Mock()
         mock_get.return_value = mock_collection
 
-        secure_db.add_documents(
+        doc_ids = secure_db.add_documents(
             collection_name="test_collection",
             documents=documents,
             metadatas=metadatas,
@@ -122,10 +175,12 @@ def test_add_documents(secure_db):
             isinstance(next(iter(m.values())), str) for m in call_args["metadatas"]
         )
 
+        # Verify document IDs were returned
+        assert len(doc_ids) == len(documents)
+
 
 def test_query_collection(secure_db):
     """Test querying a collection."""
-    # Create encrypted mock data
     test_doc = "Test document"
     encrypted_doc = secure_db._encrypt_text(test_doc)
 
@@ -167,6 +222,7 @@ def test_invalid_api_credentials():
                 api_key="invalid",
                 api_endpoint="invalid",
                 encryption_key=base64.urlsafe_b64encode(os.urandom(32)),
+                db_unique_id="test-db",  # Added required db_unique_id
             )
     assert "Invalid API configuration" in str(excinfo.value)
 
@@ -180,6 +236,137 @@ def test_collection_not_found(secure_db):
     ):
         with pytest.raises(ProcessingError):
             secure_db.add_documents("nonexistent_collection", ["doc1"])
+
+
+def test_drop_collection(secure_db):
+    """Test dropping a collection."""
+    with patch.object(secure_db.client, "delete_collection") as mock_delete:
+        # Test successful drop
+        secure_db.drop_collection("test_collection")
+        mock_delete.assert_called_once_with(name="test_collection")
+
+
+def test_drop_collection_error(secure_db):
+    """Test error handling when dropping a collection fails."""
+    with patch.object(
+        secure_db.client, "delete_collection", side_effect=Exception("Failed to delete")
+    ):
+        with pytest.raises(ProcessingError) as excinfo:
+            secure_db.drop_collection("test_collection")
+        assert "Failed to drop collection" in str(excinfo.value)
+
+
+def test_cleanup_database(secure_db):
+    """Test database cleanup functionality."""
+    mock_collection = Mock()
+    mock_collection.name = "test_collection"
+
+    with patch.object(secure_db.client, "list_collections") as mock_list, patch.object(
+        secure_db.client, "delete_collection"
+    ) as mock_delete, patch.object(secure_db.client, "reset") as mock_reset, patch(
+        "shutil.rmtree"
+    ) as mock_rmtree, patch.object(
+        Path, "exists", return_value=True
+    ):
+
+        # Mock collection listing
+        mock_list.return_value = [mock_collection]
+
+        # Test successful cleanup
+        secure_db.cleanup_database()
+
+        # Verify all cleanup steps were called
+        mock_list.assert_called_once()
+        mock_delete.assert_called_once_with(name="test_collection")
+        mock_reset.assert_called_once()
+        mock_rmtree.assert_called_once_with(secure_db.storage_path)
+
+
+def test_cleanup_database_force(secure_db):
+    """Test forced database cleanup when collection deletion fails."""
+    mock_collection = Mock()
+    mock_collection.name = "test_collection"
+
+    with patch.object(secure_db.client, "list_collections") as mock_list, patch.object(
+        secure_db.client, "delete_collection", side_effect=Exception("Delete failed")
+    ) as mock_delete, patch.object(secure_db.client, "reset") as mock_reset, patch(
+        "shutil.rmtree"
+    ) as mock_rmtree, patch.object(
+        Path, "exists", return_value=True
+    ):
+
+        # Mock collection listing
+        mock_list.return_value = [mock_collection]
+
+        # Test forced cleanup
+        secure_db.cleanup_database(force=True)
+
+        # Verify cleanup steps were attempted
+        mock_list.assert_called_once()
+        mock_delete.assert_called_once_with(name="test_collection")
+        mock_reset.assert_called_once()
+        mock_rmtree.assert_called_once_with(secure_db.storage_path)
+
+
+def test_cleanup_database_error_no_force(secure_db):
+    """Test cleanup failure when not using force mode."""
+    mock_collection = Mock()
+    mock_collection.name = "test_collection"
+
+    with patch.object(secure_db.client, "list_collections") as mock_list, patch.object(
+        secure_db.client, "delete_collection", side_effect=Exception("Delete failed")
+    ):
+
+        # Mock collection listing
+        mock_list.return_value = [mock_collection]
+
+        # Test cleanup without force should raise error
+        with pytest.raises(ProcessingError) as excinfo:
+            secure_db.cleanup_database(force=False)
+
+        assert "Failed to drop collection" in str(excinfo.value)
+
+
+def test_context_manager(encryption_key):
+    """Test SecureChromaDB context manager functionality."""
+    with patch("chromadb.PersistentClient"), patch(
+        "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction"
+    ), patch.object(SecureChromaDB, "cleanup_database") as mock_cleanup:
+
+        with SecureChromaDB(
+            api_key="test-key",
+            api_endpoint="https://test.openai.azure.com",
+            encryption_key=encryption_key,
+            db_unique_id="test-db",
+        ) as db:
+            # Perform some operation
+            assert db.db_unique_id == "test-db"
+
+        # Verify cleanup was called on exit
+        mock_cleanup.assert_called_once_with(force=True)
+
+
+def test_context_manager_error_handling(encryption_key):
+    """Test context manager cleanup with error handling."""
+    with patch("chromadb.PersistentClient"), patch(
+        "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction"
+    ), patch.object(
+        SecureChromaDB, "cleanup_database", side_effect=Exception("Cleanup failed")
+    ), patch.object(
+        logging.Logger, "error"
+    ) as mock_log_error:
+
+        with SecureChromaDB(
+            api_key="test-key",
+            api_endpoint="https://test.openai.azure.com",
+            encryption_key=encryption_key,
+            db_unique_id="test-db",
+        ) as db:
+            assert db.db_unique_id == "test-db"
+
+        # Verify error was logged
+        mock_log_error.assert_called_once()
+        assert "Failed to cleanup database on exit" in mock_log_error.call_args[0][0]
 
 
 if __name__ == "__main__":
