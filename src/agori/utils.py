@@ -1,10 +1,12 @@
 """Utility functions for the Agori package."""
 
 import logging
-from typing import List
 from pathlib import Path
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from typing import List
+
 from langchain.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 from .exceptions import ProcessingError
 
 
