@@ -1,17 +1,16 @@
 """Tests for SecureChromaDB functionality."""
 
 import base64
-import os
 import datetime
 import logging  # Added import for logging
+import os
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 from cryptography.fernet import Fernet
 
 from agori import ConfigurationError, ProcessingError, SecureChromaDB
-
-from pathlib import Path
 
 
 @pytest.fixture

@@ -2,8 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import List
-
 
 from .exceptions import ProcessingError
 
@@ -42,5 +40,3 @@ def validate_file_path(file_path: str) -> Path:
     if path.suffix.lower() != ".pdf":
         raise ProcessingError(f"File must be a PDF: {file_path}")
     return path
-
-
