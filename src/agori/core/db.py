@@ -11,10 +11,10 @@ import chromadb
 import chromadb.utils.embedding_functions as embedding_functions
 from cryptography.fernet import Fernet, InvalidToken
 
-from .exceptions import ConfigurationError, ProcessingError, SearchError
+from agori.utils.exceptions import ConfigurationError, ProcessingError, SearchError
 
 
-class SecureChromaDB:
+class WorkingMemory:
     """Main class for secure ChromaDB and Azure OpenAI embeddings integration."""
 
     def __init__(
@@ -28,7 +28,7 @@ class SecureChromaDB:
         model_name: str = "text-embedding-ada-002",
         base_storage_path: str = "./secure_chroma_storage",
     ):
-        """Initialize SecureChromaDB."""
+        """Initialize WorkingMemory."""
         try:
             self.logger = self._setup_logging()
             self.db_unique_id = self._validate_db_id(db_unique_id)
@@ -60,12 +60,12 @@ class SecureChromaDB:
             self.storage_path.mkdir(parents=True, exist_ok=True)
             self.client = chromadb.PersistentClient(path=str(self.storage_path))
 
-            self.logger.info(f"SecureChromaDB initialized with ID: {self.db_unique_id}")
+            self.logger.info(f"WorkingMemory initialized with ID: {self.db_unique_id}")
 
         except ConfigurationError:
             raise
         except Exception as e:
-            raise ConfigurationError(f"Failed to initialize SecureChromaDB: {str(e)}")
+            raise ConfigurationError(f"Failed to initialize WorkingMemory: {str(e)}")
 
     def _validate_db_id(self, db_id: str) -> str:
         """Validate database ID."""
