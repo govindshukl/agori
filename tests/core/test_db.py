@@ -1,4 +1,5 @@
-"""Tests for SecureChromaDB functionality."""
+# agori/test/test_core.py
+"""Tests for WorkingMemory functionality."""
 
 import base64
 import datetime
@@ -10,7 +11,8 @@ from unittest.mock import Mock, patch
 import pytest
 from cryptography.fernet import Fernet
 
-from agori import ConfigurationError, ProcessingError, SecureChromaDB
+from agori.core.db import WorkingMemory
+from agori.utils.exceptions import ConfigurationError, ProcessingError  # Updated import
 
 
 @pytest.fixture
@@ -27,7 +29,7 @@ def mock_embeddings():
 
 @pytest.fixture
 def secure_db(encryption_key):
-    """Fixture to create a SecureChromaDB instance with mocked dependencies."""
+    """Fixture to create a WorkingMemory instance with mocked dependencies."""
     with patch("chromadb.PersistentClient"), patch(
         "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction"
     ) as mock_ef:
@@ -35,7 +37,7 @@ def secure_db(encryption_key):
         mock_ef.return_value = Mock()
         mock_ef.return_value.side_effect = lambda x: [[0.1, 0.2, 0.3] for _ in x]
 
-        db = SecureChromaDB(
+        db = WorkingMemory(
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=encryption_key,
@@ -46,11 +48,11 @@ def secure_db(encryption_key):
 
 
 def test_initialization(encryption_key):
-    """Test successful initialization of SecureChromaDB."""
+    """Test successful initialization of WorkingMemory."""
     with patch("chromadb.PersistentClient"), patch(
         "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction"
     ):
-        db = SecureChromaDB(
+        db = WorkingMemory(
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=encryption_key,
@@ -65,7 +67,7 @@ def test_initialization(encryption_key):
 def test_initialization_without_encryption_key():
     """Test that initialization fails without encryption key."""
     with pytest.raises(ConfigurationError) as excinfo:
-        SecureChromaDB(
+        WorkingMemory(
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key="",
@@ -77,7 +79,7 @@ def test_initialization_without_encryption_key():
 def test_initialization_without_db_id():
     """Test that initialization fails without db_unique_id."""
     with pytest.raises(ConfigurationError) as excinfo:
-        SecureChromaDB(
+        WorkingMemory(
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=base64.urlsafe_b64encode(os.urandom(32)),
@@ -89,7 +91,7 @@ def test_initialization_without_db_id():
 def test_invalid_db_id():
     """Test initialization with invalid db_unique_id."""
     with pytest.raises(ConfigurationError) as excinfo:
-        SecureChromaDB(
+        WorkingMemory(
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=base64.urlsafe_b64encode(os.urandom(32)),
@@ -217,7 +219,7 @@ def test_invalid_api_credentials():
             "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction"
         ) as mock_ef:
             mock_ef.side_effect = Exception("Invalid credentials")
-            SecureChromaDB(
+            WorkingMemory(
                 api_key="invalid",
                 api_endpoint="invalid",
                 encryption_key=base64.urlsafe_b64encode(os.urandom(32)),
@@ -327,12 +329,12 @@ def test_cleanup_database_error_no_force(secure_db):
 
 
 def test_context_manager(encryption_key):
-    """Test SecureChromaDB context manager functionality."""
+    """Test WorkingMemory context manager functionality."""
     with patch("chromadb.PersistentClient"), patch(
         "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction"
-    ), patch.object(SecureChromaDB, "cleanup_database") as mock_cleanup:
+    ), patch.object(WorkingMemory, "cleanup_database") as mock_cleanup:
 
-        with SecureChromaDB(
+        with WorkingMemory(
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=encryption_key,
@@ -350,12 +352,12 @@ def test_context_manager_error_handling(encryption_key):
     with patch("chromadb.PersistentClient"), patch(
         "chromadb.utils.embedding_functions.OpenAIEmbeddingFunction"
     ), patch.object(
-        SecureChromaDB, "cleanup_database", side_effect=Exception("Cleanup failed")
+        WorkingMemory, "cleanup_database", side_effect=Exception("Cleanup failed")
     ), patch.object(
         logging.Logger, "error"
     ) as mock_log_error:
 
-        with SecureChromaDB(
+        with WorkingMemory(
             api_key="test-key",
             api_endpoint="https://test.openai.azure.com",
             encryption_key=encryption_key,

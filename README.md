@@ -22,91 +22,68 @@ pip install agori
 ## Quick Start
 
 ```python
-import base64
-import os
-from agori import SecureChromaDB
+from agori.core import WorkingMemory
+from cryptography.fernet import Fernet
 
-# Generate a secure encryption key
-encryption_key = base64.urlsafe_b64encode(os.urandom(32)).decode()
+# Generate a new encryption key (in practice, store this securely)
+encryption_key = Fernet.generate_key()
 
-# Initialize SecureChromaDB with context manager for automatic cleanup
-with SecureChromaDB(
-    api_key="your-azure-api-key",
-    api_endpoint="https://your-instance.openai.azure.com/",
+# Initialize the secure database
+db = WorkingMemory(
+    api_key="your-azure-openai-key",
+    api_endpoint="your-azure-endpoint",
     encryption_key=encryption_key,
-    db_unique_id="my_secure_db",
-    base_storage_path="./secure_storage",
-    model_name="text-embedding-ada-002",  # or your deployment name
-    api_version="2024-02-15-preview",
-    api_type="azure"
-) as db:
-    # Create and manage collections
-    db.create_collection(
-        name="sensitive_docs",
-        metadata={"security_level": "high", "department": "HR"}
-    )
+    db_unique_id="my_secure_db"
+)
 
-    # Add documents with metadata
-    db.add_documents(
-        collection_name="sensitive_docs",
-        documents=["Confidential report 2024", "Employee records"],
-        metadatas=[
-            {"type": "report", "year": "2024"},
-            {"type": "records", "department": "HR"}
-        ]
-    )
+# Create a new collection
+collection_metadata = {
+    "description": "Research papers database",
+    "owner": "research_team"
+}
+collection = db.create_collection("research_papers", metadata=collection_metadata)
 
-    # Search documents
-    results = db.query_collection(
-        collection_name="sensitive_docs",
-        query_texts=["confidential information"],
-        n_results=2
-    )
+# Add documents with metadata
+documents = [
+    "Advances in Neural Networks",
+    "Quantum Computing Overview",
+    "Machine Learning Applications"
+]
+metadata_list = [
+    {"author": "John Doe", "year": "2023"},
+    {"author": "Jane Smith", "year": "2023"},
+    {"author": "Bob Wilson", "year": "2024"}
+]
 
-    # Process results
-    for i, docs in enumerate(results["documents"]):
-        for j, doc in enumerate(docs):
-            print(f"Document: {doc}")
-            print(f"Similarity: {results['distances'][i][j]}")
-            if "metadatas" in results:
-                print(f"Metadata: {results['metadatas'][i][j]}\n")
+# Add documents - they will be automatically encrypted
+doc_ids = db.add_documents(
+    collection_name="research_papers",
+    documents=documents,
+    metadatas=metadata_list
+)
+
+# Query the collection - results will be automatically decrypted
+results = db.query_collection(
+    collection_name="research_papers",
+    query_texts=["neural networks"],
+    n_results=2
+)
+
+# Process results
+for i, (doc, distance) in enumerate(zip(results["documents"][0], results["distances"][0])):
+    print(f"Result {i+1}:")
+    print(f"Document: {doc}")
+    print(f"Similarity Score: {1 - distance}")  # Convert distance to similarity
+    if "metadatas" in results:
+        print(f"Metadata: {results['metadatas'][0][i]}")
+    print()
+
+#cleanup the collection and db
+db.drop_collection("research_papers")
+db.cleanup_database()
+
 ```
 
-## Advanced Usage
-
-### Collection Management
-
-```python
-# List all collections
-collections = db.list_collections()
-for collection in collections:
-    print(f"Name: {collection['name']}")
-    print(f"Creation Time: {collection['creation_time']}")
-    print(f"Metadata: {collection['metadata']}\n")
-
-# Drop a specific collection
-db.drop_collection("collection_name")
-
-# Clean up entire database
-db.cleanup_database(force=True)
-```
-
-### Error Handling
-
-```python
-from agori import ConfigurationError, ProcessingError, SearchError
-
-try:
-    # Attempt to create collection
-    collection = db.create_collection(
-        name="secure_docs",
-        metadata={"department": "Legal"}
-    )
-except ConfigurationError as e:
-    print(f"Configuration error: {e}")
-except ProcessingError as e:
-    print(f"Processing error: {e}")
-```
 
 ## Security Features
 
