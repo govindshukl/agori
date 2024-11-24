@@ -21,13 +21,26 @@ keywords = [
 authors = [
     { name = "Govind Shukla", email = "govind.shukl@gmail.com" }
 ]
+
 dependencies = [
-    "chromadb",
-    "openai",
-    "cryptography",
-    "langchain",
-    "pypdf",
-    "tiktoken"
+"langchain",
+"pypdf",
+"chromadb",
+"cryptography",
+"langchain-core",
+"langchain-community",
+"langchain-openai",
+"tiktoken",
+"tenacity",
+"azure-openai",
+"openai",
+"azure-identity",
+"azure-keyvault-secrets",
+"azure-core",
+"python-dotenv",
+"numpy",
+"pandas",
+"pytest-asyncio"
 ]
 
 [project.optional-dependencies]
