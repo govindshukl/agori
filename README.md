@@ -1,17 +1,14 @@
 # Agori
 
-Agori is a secure Python package that provides encrypted document storage and semantic search capabilities using ChromaDB and Azure OpenAI embeddings. It focuses on secure storage and retrieval of sensitive documents while maintaining searchability through encrypted vector embeddings.
+Agori is a Python package that implements various decision-making frameworks powered by generative AI. It aims to enhance group decision-making processes by leveraging the capabilities of large language models.
 
-## Features
+## Currently Supported Frameworks
 
-- 🔐 End-to-end encryption for documents and metadata
-- 🔍 Semantic search using Azure OpenAI embeddings
-- 📚 Multiple collection management within a database
-- 💾 Persistent storage with database isolation
-- 🚀 Simple and intuitive API
-- 🛡️ Comprehensive error handling
-- 📝 Detailed logging
-- 🧹 Automatic resource cleanup
+### 1. Nominal Group Technique (NGT)
+The Nominal Group Technique is a structured decision-making method that helps groups reach consensus through a systematic process of idea generation and evaluation. Our implementation enhances this process using AI to:
+- Generate diverse expert perspectives
+- Analyze problems from multiple angles
+- Synthesize insights into actionable recommendations
 
 ## Installation
 
@@ -21,163 +18,157 @@ pip install agori
 
 ## Quick Start
 
+Here's a simple example using the NGT framework:
+
 ```python
-from agori.core import WorkingMemory
-from cryptography.fernet import Fernet
+import asyncio
+from agori.decision_frameworks.ngt import NGTProcessor 
+from langchain_community.document_loaders import PyPDFLoader
 
-# Generate a new encryption key (in practice, store this securely)
-encryption_key = Fernet.generate_key()
+async def analyze_document(document_path: str, query: str):
+    # Load document
+    loader = PyPDFLoader(document_path)
+    pages = loader.load()
+    
+    # Initialize NGT processor
+    ngt = NGTProcessor(
+        deployment="your-deployment",
+        endpoint="your-endpoint", 
+        api_key="your-api-key",
+        api_version="your-api-version",
+        verbose=True
+    )
 
-# Initialize the secure database
-db = WorkingMemory(
-    api_key="your-azure-openai-key",
-    api_endpoint="your-azure-endpoint",
-    encryption_key=encryption_key,
-    db_unique_id="my_secure_db"
-)
+    # Add documents
+    ngt.add_documents(pages)
+    
+    # Run analysis
+    result = await ngt.run_ngt_analysis(query)
+    return result
 
-# Create a new collection
-collection_metadata = {
-    "description": "Research papers database",
-    "owner": "research_team"
-}
-collection = db.create_collection("research_papers", metadata=collection_metadata)
-
-# Add documents with metadata
-documents = [
-    "Advances in Neural Networks",
-    "Quantum Computing Overview",
-    "Machine Learning Applications"
-]
-metadata_list = [
-    {"author": "John Doe", "year": "2023"},
-    {"author": "Jane Smith", "year": "2023"},
-    {"author": "Bob Wilson", "year": "2024"}
-]
-
-# Add documents - they will be automatically encrypted
-doc_ids = db.add_documents(
-    collection_name="research_papers",
-    documents=documents,
-    metadatas=metadata_list
-)
-
-# Query the collection - results will be automatically decrypted
-results = db.query_collection(
-    collection_name="research_papers",
-    query_texts=["neural networks"],
-    n_results=2
-)
-
-# Process results
-for i, (doc, distance) in enumerate(zip(results["documents"][0], results["distances"][0])):
-    print(f"Result {i+1}:")
-    print(f"Document: {doc}")
-    print(f"Similarity Score: {1 - distance}")  # Convert distance to similarity
-    if "metadatas" in results:
-        print(f"Metadata: {results['metadatas'][0][i]}")
-    print()
-
-#cleanup the collection and db
-db.drop_collection("research_papers")
-db.cleanup_database()
-
+# Run analysis
+document_path = "your_document.pdf"
+query = "What strategic decisions should we make based on this document?"
+result = await analyze_document(document_path, query)
 ```
 
+## Features
 
-## Security Features
+### NGT Framework
+- **Expert Role Generation**: Automatically identifies relevant expert perspectives based on the problem context
+- **Multi-perspective Analysis**: Analyzes problems from different expert viewpoints
+- **Parallel Processing**: Efficiently processes large documents using concurrent analysis
+- **Structured Output**: Provides organized insights with clear recommendations
+- **Configurable Parameters**: Allows customization of processing parameters
+- **Detailed Logging**: Offers verbose mode for tracking the decision-making process
 
-### Encryption
-- All documents and metadata are encrypted using Fernet symmetric encryption
-- Secure key generation and management required
-- Encrypted storage of documents and metadata
+## Configuration
 
-### Database Isolation
-- Each database instance has a unique ID
-- Separate storage paths for different databases
-- Secure cleanup of resources
+The NGT processor accepts various configuration parameters:
 
-## Development
+```python
+from agori.decision_frameworks.ngt.models import Config
 
-To set up the development environment:
+config = Config(
+    MAX_TOKENS_PER_REQUEST=126000,
+    CHUNK_SIZE=31500,
+    CHUNK_OVERLAP=2000,
+    MAX_WORKERS=3,
+    MAX_PARALLEL_REQUESTS=3,
+    VERBOSE=True
+)
 
-```bash
-# Clone the repository
-git clone https://github.com/govindshukl/agori.git
-cd agori
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Install the package in editable mode
-pip install -e .
+ngt = NGTProcessor(
+    deployment="your-deployment",
+    endpoint="your-endpoint", 
+    api_key="your-api-key",
+    api_version="your-api-version",
+    config=config
+)
 ```
 
-### Testing and Quality Assurance
+## Advanced Usage
 
-```bash
-# Run tests
-pytest tests -v --cov=agori
+### Step-by-Step Process
 
-# Code formatting
-black src/agori tests
-isort src/agori tests
+You can also run the NGT process step by step:
 
-# Linting
-flake8 src/agori tests
-mypy src/agori tests
+```python
+# Generate experts
+experts = await ngt.generate_experts(query)
+
+# Generate expert responses
+expert_responses = await ngt.analyze_with_experts(experts, query)
+
+# Synthesize results
+synthesis = await ngt.synthesize_ngt_results(expert_responses)
 ```
 
-## Requirements
+### Error Handling
 
-- Python 3.8 or higher
-- Azure OpenAI API access
-- Required packages:
-  - chromadb
-  - cryptography
-  - azure-openai
+The package includes custom exceptions for better error handling:
 
-## Best Practices
+```python
+from agori.decision_frameworks.ngt import (
+    NGTError,
+    ExpertGenerationError,
+    IdeaGenerationError,
+    SynthesisError
+)
 
-### Security
-1. Never hardcode encryption keys or API credentials
-2. Use environment variables for sensitive information
-3. Implement proper key management
-4. Regular cleanup of sensitive data
+try:
+    result = await ngt.run_ngt_analysis(query)
+except ExpertGenerationError as e:
+    print(f"Error generating experts: {e}")
+except IdeaGenerationError as e:
+    print(f"Error generating ideas: {e}")
+except SynthesisError as e:
+    print(f"Error synthesizing results: {e}")
+except NGTError as e:
+    print(f"General NGT error: {e}")
+```
 
-### Resource Management
-1. Use context managers for automatic cleanup
-2. Properly handle collection lifecycle
-3. Implement error handling for all operations
+## Dependencies
+
+- langchain
+- tiktoken
+- azure-openai
+- asyncio
+- typing
+- dataclasses
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/NewFeature`)
-3. Commit your changes (`git commit -m 'Add NewFeature'`)
-4. Push to the branch (`git push origin feature/NewFeature`)
-5. Open a Pull Request
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+[MIT License](LICENSE)
 
-## Support
+## Project Status
 
-If you encounter any issues or need support, please:
+This project is actively under development. The NGT framework is the first implementation, with more decision-making frameworks planned for future releases.
 
-1. Check the [documentation](https://github.com/govindshukl/agori/docs)
-2. Search through [existing issues](https://github.com/govindshukl/agori/issues)
-3. Open a new issue if needed
+## Roadmap
 
-## Acknowledgments
+- [ ] Additional decision frameworks
+- [ ] Working memory for intermediate results caching
+- [ ] Support for more LLM providers
+- [ ] Integration with decision support tools
 
-- ChromaDB for vector database functionality
-- Azure OpenAI for embeddings generation
-- Cryptography.io for encryption capabilities
+
+## Citation
+
+If you use Agori in your research, please cite:
+
+```bibtex
+@software{agori2024,
+  title = {Agori: AI-Powered Decision Frameworks},
+  year = {2024},
+  url = {https://github.com/govindshukl/agori}
+}
+```
+
+## Contact
+
+For questions and feedback, please open an issue on the GitHub repository.
