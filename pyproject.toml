@@ -5,11 +5,19 @@ build-backend = "hatchling.build"
 [project]
 name = "agori"
 version = "0.1.4"
-description = "A secure working memory for agents"
+description = "AI-powered decision-making frameworks for enhancing group decisions"
 readme = "README.md"
 requires-python = ">=3.8"
-license = "MIT"
-keywords = ["chromadb", "azure", "openai", "embeddings", "working memory", "semantic-search", "encryption"]
+keywords = [
+"decision-making",
+"artificial-intelligence",
+"nominal-group-technique",
+"group-decision",
+"ai-frameworks",
+"azure-openai",
+"langchain",
+"collaborative-decision-making"
+]
 authors = [
     { name = "Govind Shukla", email = "govind.shukl@gmail.com" }
 ]
@@ -18,7 +26,8 @@ dependencies = [
     "openai",
     "cryptography",
     "langchain",
-    "pypdf"
+    "pypdf",
+    "tiktoken"
 ]
 
 [project.optional-dependencies]
@@ -30,6 +39,12 @@ test = [
     "flake8>=6.0.0",
     "mypy>=1.0.0",
     "types-requests>=2.0.0"
+]
+
+docs = [
+"mkdocs>=1.4.0",
+"mkdocs-material>=9.0.0",
+"mkdocstrings>=0.20.0"
 ]
 
 [project.urls]
